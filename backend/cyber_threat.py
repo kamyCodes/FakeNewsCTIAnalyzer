@@ -1,0 +1,411 @@
+"""
+Cyber Threat Intelligence Module
+================================
+Analyzes text and URLs for cybersecurity threats including phishing,
+social engineering, and malicious content indicators.
+"""
+
+import re
+import os
+import json
+import logging
+from typing import Dict, List, Optional
+from urllib.parse import urlparse
+
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+
+try:
+    from urlhaus_checker import URLhausChecker
+    URLHAUS_AVAILABLE = True
+except ImportError:
+    URLHAUS_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+class CyberThreatAnalyzer:
+    def __init__(self):
+        self.phishing_keywords = {
+            'verify your account', 'confirm your identity', 'update your information',
+            'suspended', 'unauthorized access', 'security alert', 'unusual activity',
+            'click here immediately', 'act now', 'limited time', 'expires soon',
+            'your account will be', 'failure to', 'within 24 hours', 'within 48 hours',
+            'verify immediately', 'confirm now', 'urgent action required',
+            'invoice attached', 'payment due', 'overdue notice', 'billing department',
+            'process payment', 'statement attached', 'review your invoice',
+            'account compromise', 'security breach', 'password reset required',
+            'verify login', 'multiple failed attempts', 're-authenticate',
+            'payroll update', 'ebilling notification', 'official notice',
+            'customer support alert', 'irregular activity', 'risk detected',
+            'blocked account', 'security violation', 'privacy update',
+            'new sign-in', 'unrecognized device', 'action needed', 'mandatory update'
+        }
+
+        self.social_engineering_patterns = [
+            r'(?:click|tap) (?:here|this|the link)',
+            r'(?:enter|provide|confirm) your (?:password|credentials|login)',
+            r'(?:bank|paypal|amazon|apple|microsoft|google) (?:account|security)',
+            r'(?:won|winner|selected|chosen) (?:a |the )?(?:prize|lottery|gift)',
+            r'(?:inheritance|million|billion) (?:dollars|usd|euros)',
+            r'(?:nigerian|foreign) (?:prince|diplomat|official)',
+            r'wire (?:transfer|money)',
+            r'(?:western union|moneygram)',
+            r'unauthorized (?:charge|transaction|purchase)',
+            r'suspicious (?:login|activity|access)',
+            r'account (?:locked|blocked|disabled)',
+            r'validate (?:your|the) (?:identity|account)',
+            r'(?:important|critical|official) (?:notification|update)',
+            r're-verify (?:now|immediately)',
+            r'security (?:code|token|key|pin)',
+            r'one-time (?:password|otp)',
+            r'payroll (?:change|adjustment|correction)',
+            r'human resources (?:notice|compliance)',
+            r'internal (?:communication|memo|alert)',
+            r'shared (?:a document|a file|via onedrive|via dropbox)',
+            r'view (?:your|the) (?:invoice|statement|document|file)'
+        ]
+
+        self.urgency_indicators = {
+            'urgent', 'immediately', 'right now', 'asap', 'emergency',
+            'act fast', 'dont delay', 'time sensitive', 'expires',
+            'last chance', 'final notice', 'action required', 'respond now',
+            'before closing', 'automatic payment', 'debited tonight', 'avoid suspension',
+            'terminated', 'permanently deleted', 'loss of access', 'last warning',
+            'deadline', 'cutoff time', 'within 1 hour', 'within 30 minutes',
+            'instant', 'quick action', 'don\'t miss out', 'limited availability',
+            'enforce', 'compulsory', 'non-compliance', 'penalty', 'legal action',
+            'immediate attention', 'take action now', 'don\'t wait', 'critical'
+        }
+
+        self.credential_indicators = {
+            'password', 'username', 'login', 'signin', 'sign in',
+            'credit card', 'ssn', 'social security', 'bank account',
+            'routing number', 'pin', 'cvv', 'security code', 'mother maiden',
+            'secure login', 'member area', 'client portal', 'verify credentials',
+            'log in here', 'access your account', 'identity proof', 'drivers license',
+            'passport copy', 'billing address', 'cardholder name', 'expiry date',
+            'account number', 'sort code', 'iban', 'swift code', 'authentication'
+        }
+
+        self.suspicious_tlds = {
+            '.xyz', '.top', '.club', '.work', '.click', '.link',
+            '.info', '.online', '.site', '.website', '.space',
+            '.tk', '.ml', '.ga', '.cf', '.gq', '.cam', '.bet',
+            '.icu', '.buzz', '.monster', '.rest', '.quest'
+        }
+
+        self.trusted_domains = {
+            'google.com', 'microsoft.com', 'apple.com', 'amazon.com',
+            'facebook.com', 'twitter.com', 'linkedin.com', 'github.com',
+            'stackoverflow.com', 'wikipedia.org', 'gov', 'edu',
+            'reuters.com', 'bbc.co.uk', 'nytimes.com', 'paypal.com'
+        }
+
+        self.malware_patterns = {
+            'crypto scams': ['send bitcoin', 'send eth', 'wallet address', 'double your crypto',
+                             'guaranteed returns', 'investment opportunity', 'crypto giveaway',
+                             'passive income', 'mining pool', 'meta mask', 'trust wallet',
+                             'private key', 'seed phrase', 'recovery phrase', 'crypto profit'],
+            'tech support scams': ['call this number', 'microsoft support', 'virus detected',
+                                   'computer infected', 'refund department', 'tech support',
+                                   'firewall breached', 'system frozen', 'call helpdesk',
+                                   'technician', 'remote access', 'anydesk', 'teamviewer'],
+            'romance scams': ['send money', 'western union', 'gift cards', 'stranded',
+                              'medical emergency', 'help me financially', 'inheritance tax',
+                              'flight ticket', 'visa fee', 'love you', 'soulmate'],
+            'advance fee fraud': ['transfer fee', 'release funds', 'processing fee',
+                                   'claim your prize', 'lottery winnings', 'grant money',
+                                   'government funding', 'atm card', 'diplomatic courier']
+        }
+
+        self.dark_web_terms = {
+            'ransomware', 'botnet', 'keylogger', 'rootkit', 'trojan',
+            'zero-day', 'exploit kit', 'ddos', 'doxxing', 'swatting',
+            'carding', 'fullz', 'drops', 'mule account', 'darknet',
+            'onion link', 'tor browser', 'sql injection', 'xss',
+            'brute force', 'data leak', 'breach pack', 'credential stuffing'
+        }
+
+        # URLhaus API integration
+        if URLHAUS_AVAILABLE:
+            self.urlhaus = URLhausChecker()
+            print(" URLhaus malware database connected")
+        else:
+            self.urlhaus = None
+
+        # Groq API for advanced NLP threat reasoning
+        self.groq_client = None
+        if GROQ_AVAILABLE:
+            api_key = os.environ.get('GROQ_API_KEY')
+            if api_key:
+                try:
+                    self.groq_client = Groq(api_key=api_key)
+                    print(" Cyber Threat NLP Engine (Groq Llama-3) connected")
+                except Exception as e:
+                    print(f" Groq initialization error in Cyber Threat module: {e}")
+            else:
+                print(" No GROQ_API_KEY found for Cyber Threat Engine")
+
+    def analyze(self, text: str, url: Optional[str] = None) -> Dict:
+        text_lower = text.lower()
+
+        # Calculate all component scores
+        phishing_score = self._calculate_phishing_score(text_lower)
+        social_eng_score = self._calculate_social_engineering_score(text_lower)
+        urgency_score = self._calculate_urgency_score(text_lower)
+        credential_score = self._calculate_credential_harvesting_score(text_lower)
+        malware_score = self._calculate_malware_score(text_lower)
+
+        url_score = 0
+        if url:
+            url_score = self._analyze_url(url)
+        else:
+            extracted_urls = self._extract_urls(text)
+            if extracted_urls:
+                url_scores = [self._analyze_url(u) for u in extracted_urls[:5]]
+                url_score = max(url_scores) if url_scores else 0
+
+        # URLhaus API check
+        urlhaus_score = 0
+        urlhaus_details = "No URLs checked"
+        if self.urlhaus:
+            try:
+                urlhaus_result = self.urlhaus.extract_and_check(text)
+                urlhaus_score = urlhaus_result['risk_score']
+                urlhaus_details = urlhaus_result['details']
+                if urlhaus_score > 0:
+                    url_score = max(url_score, urlhaus_score)
+            except Exception:
+                # Silently fail here as urlhaus_checker now prints its own helpful error
+                pass
+
+        # Use highest score + bonus for multiple active threats
+        component_scores = [
+            phishing_score, social_eng_score,
+            urgency_score, credential_score,
+            malware_score, url_score
+        ]
+
+        highest_score = max(component_scores)
+        active_threats = sum(1 for s in component_scores if s > 20)
+        multi_threat_bonus = (active_threats - 1) * 10 if active_threats > 1 else 0
+
+        risk_score = min(100, highest_score + multi_threat_bonus)
+
+        # Let the NLP engine perform a zero-shot contextual analysis for deep social engineering
+        nlp_threat_details = "NLP engine not run"
+        if self.groq_client and len(text.strip()) > 10:
+            try:
+                nlp_result = self._query_nlp_threat_analyzer(text)
+                nlp_threat_score = nlp_result.get('risk_score', 0)
+                nlp_explanation = nlp_result.get('explanation', '')
+                
+                if nlp_threat_score > risk_score:
+                    # If NLP detects something heuristics completely missed, boost it
+                    risk_score = max(risk_score, nlp_threat_score)
+                nlp_threat_details = f"{nlp_explanation} (NLP Confidence: {nlp_threat_score}%)"
+            except Exception as e:
+                print(f"NLP Threat Engine error: {e}")
+                nlp_threat_details = "NLP engine failed during analysis"
+
+        risk_score = round(min(100, risk_score), 1)
+
+        return {
+            "risk_score": round(risk_score, 1),
+            "threat_level": self._get_threat_level(risk_score),
+            "factors": {
+                "phishing_indicators": round(phishing_score, 1),
+                "social_engineering_score": round(social_eng_score, 1),
+                "urgency_pressure_score": round(urgency_score, 1),
+                "credential_harvesting_risk": round(credential_score, 1),
+                "url_risk_score": round(url_score, 1),
+                "malware_patterns": round(malware_score, 1),
+                "urlhaus_check": urlhaus_details,
+                "explainable_ai": nlp_threat_details,
+                "detected_threats": self._get_detected_threats(
+                    phishing_score, social_eng_score, urgency_score,
+                    credential_score, url_score, malware_score
+                ),
+                "explanation": self._generate_explanation(
+                    phishing_score, social_eng_score, urgency_score,
+                    credential_score, url_score, malware_score
+                )
+            }
+        }
+
+    def _query_nlp_threat_analyzer(self, text: str) -> Dict:
+        """Uses Llama 3 to perform a deep contextual cyber threat analysis."""
+        prompt = f"""You are an elite cybersecurity analyst. Your job is to analyze the following text and determine if it is a phishing attempt, social engineering attack, credential harvesting trap, or scam.
+Pay close attention to psychological manipulation, implicit urgency, or requests for sensitive information that standard regex might miss.
+
+Text to analyze:
+\"\"\"{text[:1000]}\"\"\"
+
+Output ONLY a raw JSON object (no markdown, no extra text) with:
+- "risk_score": Integer 0 to 100 representing the threat level.
+- "explanation": A one-sentence summary of the primary threat detected, or "No significant contextual threats detected." if safe.
+"""
+        response = self.groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "You are a cyber threat NLP model. Output raw JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=150,
+            response_format={"type": "json_object"}
+        )
+
+        content = response.choices[0].message.content
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            return {"risk_score": 0, "explanation": "Failed to parse NLP response."}
+
+    def _calculate_phishing_score(self, text: str) -> float:
+        matches = sum(1 for keyword in self.phishing_keywords if keyword in text)
+        if matches == 0:
+            return 0
+        score = matches * 30
+        return min(100, score)
+
+    def _calculate_social_engineering_score(self, text: str) -> float:
+        pattern_matches = sum(
+            1 for pattern in self.social_engineering_patterns
+            if re.search(pattern, text, re.IGNORECASE)
+        )
+        return min(100, pattern_matches * 25)
+
+    def _calculate_urgency_score(self, text: str) -> float:
+        urgency_matches = sum(1 for indicator in self.urgency_indicators if indicator in text)
+        time_patterns = [
+            r'\b\d+\s*(?:hour|day|minute)s?\b',
+            r'\bexpires?\s+(?:in|on|at)\b',
+            r'\bdeadline\b',
+            r'\blast\s+(?:chance|warning|notice)\b'
+        ]
+        time_matches = sum(1 for p in time_patterns if re.search(p, text, re.IGNORECASE))
+        return min(100, urgency_matches * 25 + time_matches * 25)
+
+    def _calculate_credential_harvesting_score(self, text: str) -> float:
+        credential_matches = sum(1 for indicator in self.credential_indicators if indicator in text)
+        form_patterns = [
+            r'(?:enter|type|provide|input)\s+(?:your|the)',
+            r'(?:fill|complete)\s+(?:out|in|the)',
+            r'(?:submit|send)\s+(?:your|the)',
+        ]
+        form_matches = sum(1 for p in form_patterns if re.search(p, text, re.IGNORECASE))
+        return min(100, credential_matches * 30 + form_matches * 20)
+
+    def _calculate_malware_score(self, text: str) -> float:
+        score = 0
+        text_lower = text.lower()
+        for category, patterns in self.malware_patterns.items():
+            matches = sum(1 for p in patterns if p in text_lower)
+            if matches > 0:
+                score += 40 * matches
+        dark_matches = sum(1 for term in self.dark_web_terms if term in text_lower)
+        score += dark_matches * 25
+        return min(100, score)
+
+    def _get_threat_level(self, score: float) -> str:
+        if score >= 75:
+            return "Critical"
+        elif score >= 50:
+            return "High"
+        elif score >= 25:
+            return "Medium"
+        else:
+            return "Low"
+
+    def _analyze_url(self, url: str) -> float:
+        if not url:
+            return 0
+        try:
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            path = parsed.path.lower()
+            risk_score = 0
+
+            if re.match(r'\d+\.\d+\.\d+\.\d+', domain):
+                risk_score += 40
+            for tld in self.suspicious_tlds:
+                if domain.endswith(tld):
+                    risk_score += 25
+                    break
+            if domain.count('.') > 3:
+                risk_score += 20
+            typosquat_patterns = [
+                r'g[o0]{2}gle', r'faceb[o0]{2}k', r'amaz[o0]n',
+                r'micr[o0]s[o0]ft', r'app[l1]e', r'paypa[l1]',
+            ]
+            for pattern in typosquat_patterns:
+                if re.search(pattern, domain):
+                    risk_score += 35
+                    break
+            shorteners = ['bit.ly', 'tinyurl', 't.co', 'goo.gl', 'ow.ly']
+            if any(s in domain for s in shorteners):
+                risk_score += 15
+            suspicious_paths = ['login', 'signin', 'verify', 'secure', 'account', 'update']
+            if any(p in path for p in suspicious_paths):
+                risk_score += 15
+            if '@' in url:
+                risk_score += 30
+            for trusted in self.trusted_domains:
+                if trusted in domain:
+                    risk_score = max(0, risk_score - 30)
+                    break
+            return min(100, risk_score)
+        except Exception:
+            return 20
+
+    def _extract_urls(self, text: str) -> List[str]:
+        url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+        return re.findall(url_pattern, text)
+
+    def _get_detected_threats(self, phishing, social, urgency, credential, url, malware=0) -> List[str]:
+        threats = []
+        if phishing > 30:
+            threats.append("Phishing indicators")
+        if social > 30:
+            threats.append("Social engineering patterns")
+        if urgency > 30:
+            threats.append("Urgency/pressure tactics")
+        if credential > 30:
+            threats.append("Credential harvesting attempt")
+        if url > 30:
+            threats.append("Suspicious URL detected")
+        if malware > 30:
+            threats.append("Malware/scam patterns detected")
+        return threats if threats else ["No significant threats detected"]
+
+    def _generate_explanation(self, phishing, social, urgency, credential, url, malware=0) -> str:
+        explanations = []
+        if phishing > 60:
+            explanations.append("High phishing risk detected")
+        elif phishing > 30:
+            explanations.append("Some phishing indicators present")
+        if social > 60:
+            explanations.append("Strong social engineering patterns")
+        elif social > 30:
+            explanations.append("Possible manipulation tactics")
+        if urgency > 60:
+            explanations.append("High-pressure urgency tactics")
+        if credential > 60:
+            explanations.append("Likely credential harvesting attempt")
+        elif credential > 30:
+            explanations.append("Requests for sensitive information")
+        if url > 60:
+            explanations.append("Highly suspicious URL")
+        elif url > 30:
+            explanations.append("URL shows some risk indicators")
+        if malware > 50:
+            explanations.append("Malware or scam content detected")
+        if not explanations:
+            explanations.append("Low threat indicators")
+        return "; ".join(explanations)  
