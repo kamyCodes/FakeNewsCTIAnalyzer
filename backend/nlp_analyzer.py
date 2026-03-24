@@ -58,7 +58,7 @@ class AdvancedNLPAnalyzer:
         self.authoritative_entities = {
             'reuters', 'associated press', 'bbc', 'cnn', 'al jazeera',
             'world health organization', 'who', 'cdc', 'fda', 'fbi',
-            'united nations', 'european union', 'world bank', 'imf'
+            'united nations', 'european union', 'world bank', 'imf', 'efcc'
         }
     
     def _init_spacy(self):

@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { 
+  FaSearch, FaNewspaper, FaShieldAlt, FaCheckCircle, FaTimesCircle,
+  FaFileAlt, FaClipboard, FaRobot, FaGlobe, FaExclamationTriangle, FaChartBar
+} from 'react-icons/fa';
 import './App.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -229,7 +233,13 @@ function App() {
       if (err.code === 'ECONNABORTED') {
         errorReason = 'The request timed out because the analysis took longer than 120 seconds.';
       } else if (err.response) {
-        errorReason = err.response.data?.detail || 'The server returned an internal error state.';
+        if (Array.isArray(err.response.data?.detail)) {
+          errorReason = err.response.data.detail.map(d => d.msg).join(', ');
+        } else if (typeof err.response.data?.detail === 'object') {
+          errorReason = JSON.stringify(err.response.data.detail);
+        } else {
+          errorReason = err.response.data?.detail || 'The server returned an internal error state.';
+        }
       } else if (!navigator.onLine) {
         errorTitle = 'No Internet Connection';
         errorMessage = 'Analysis cannot proceed without a network connection.';
@@ -267,7 +277,7 @@ function App() {
     <div className="app">
       <ToastContainer position="top-right" theme="dark" />
       <header className="header">
-        <h1>🔍 Fake News & Cyber Threat Intelligence Analyzer</h1>
+        <h1><FaSearch style={{ marginRight: '8px', verticalAlign: 'text-bottom' }} />Fake News & Cyber Threat Intelligence Analyzer</h1>
         <p>Percentage-based analysis for content authenticity and security threats</p>
       </header>
 
@@ -279,7 +289,7 @@ function App() {
           onClick={() => handleModeSwitch('fakenews')}
           aria-pressed={mode === 'fakenews'}
         >
-          <span className="mode-tab-icon">📰</span>
+          <span className="mode-tab-icon"><FaNewspaper /></span>
           <span className="mode-tab-label">Fake News Analysis</span>
         </button>
         <button
@@ -288,7 +298,7 @@ function App() {
           onClick={() => handleModeSwitch('cyberthreat')}
           aria-pressed={mode === 'cyberthreat'}
         >
-          <span className="mode-tab-icon">🛡️</span>
+          <span className="mode-tab-icon"><FaShieldAlt /></span>
           <span className="mode-tab-label">Cyber Threat Analysis</span>
         </button>
       </div>
@@ -345,10 +355,10 @@ function App() {
             >
               {loading
                 ? 'Analyzing...'
-                : mode === 'fakenews' ? '📰 Analyze for Fake News' : '🛡️ Analyze Cyber Threats'}
+                : mode === 'fakenews' ? <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaNewspaper /> Analyze for Fake News</span> : <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaShieldAlt /> Analyze Cyber Threats</span>}
             </button>
             <button id="btn-paste" onClick={pasteFromClipboard} className="btn-secondary" title="Paste from clipboard">
-              📋 Paste
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaClipboard /> Paste</span>
             </button>
             <button id="btn-clear" onClick={clearForm} className="btn-secondary">Clear</button>
           </div>
@@ -374,7 +384,7 @@ function App() {
             <div className="loader-container">
               <div className="loader-outer"></div>
               <div className="loader-inner"></div>
-              <div className="loader-icon">{mode === 'fakenews' ? '📰' : '🛡️'}</div>
+              <div className="loader-icon">{mode === 'fakenews' ? <FaNewspaper /> : <FaShieldAlt />}</div>
             </div>
             <div className="loading-text">
               <h2>{mode === 'fakenews' ? 'Fake News Analysis in Progress' : 'Threat Analysis in Progress'}</h2>
@@ -390,7 +400,7 @@ function App() {
         {!loading && results && (
           <section className="results-section" aria-live="polite">
             <div className="results-header">
-              <h2>{mode === 'fakenews' ? '📰 Fake News Analysis Results' : '🛡️ Cyber Threat Analysis Results'}</h2>
+              <h2>{mode === 'fakenews' ? <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaNewspaper /> Fake News Analysis Results</span> : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaShieldAlt /> Cyber Threat Analysis Results</span>}</h2>
             </div>
 
             {/* ── FAKE NEWS MODE ── */}
@@ -398,19 +408,19 @@ function App() {
               <>
                 <div className="results-grid">
                   <ScoreCard
-                    title="📰 Fake News Probability"
+                    title={<span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaNewspaper /> Fake News Probability</span>}
                     value={results.fake_news_probability}
                     color={getScoreColor(results.fake_news_probability)}
                     ranges={FAKE_NEWS_RANGES}
                   />
                   <ScoreCard
-                    title="✅ News Authenticity"
+                    title={<span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaCheckCircle /> News Authenticity</span>}
                     value={results.news_authenticity_score}
                     color={getScoreColor(results.news_authenticity_score, true)}
                     ranges={NEWS_AUTH_RANGES}
                   />
                   <ScoreCard
-                    title="📝 Originality Score"
+                    title={<span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaFileAlt /> Originality Score</span>}
                     value={results.originality_score}
                     color={getScoreColor(results.originality_score, true)}
                     ranges={ORIGINALITY_RANGES}
@@ -423,7 +433,7 @@ function App() {
                     onClick={() => setShowDetails(!showDetails)}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
                   >
-                    <h3 style={{ margin: 0 }}>📊 Detailed Analysis</h3>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}><FaChartBar /> Detailed Analysis</h3>
                     <span style={{ fontSize: '1.2rem', transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
                   </div>
 
@@ -442,7 +452,7 @@ function App() {
               <>
                 <div className="results-grid">
                   <ScoreCard
-                    title="🛡️ Cyber Threat Risk"
+                    title={<span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaShieldAlt /> Cyber Threat Risk</span>}
                     value={results.cyber_threat_risk}
                     color={getThreatColor(results.threat_level)}
                     ranges={CYBER_THREAT_RANGES}
@@ -456,7 +466,7 @@ function App() {
                     onClick={() => setShowDetails(!showDetails)}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
                   >
-                    <h3 style={{ margin: 0 }}>📊 Threat Intelligence Breakdown</h3>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}><FaChartBar /> Threat Intelligence Breakdown</h3>
                     <span style={{ fontSize: '1.2rem', transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
                   </div>
 
@@ -487,7 +497,7 @@ function FactorCard({ title, factors }) {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
 
   const formatValue = (key, value) => {
-    if (typeof value === 'boolean') return value ? '✅ Yes' : '❌ No';
+    if (typeof value === 'boolean') return value ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaCheckCircle style={{ color: '#10b981' }}/> Yes</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaTimesCircle style={{ color: '#ef4444' }}/> No</span>;
     if (value === null || value === undefined) return 'N/A';
     if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'None';
     if (typeof value === 'object') return JSON.stringify(value);
@@ -516,7 +526,7 @@ function FactorCard({ title, factors }) {
       {/* AI Verifier Analysis — shown as its own block */}
       {ai_analysis && ai_analysis.reasoning && (
         <div className="card-summary" style={{ borderLeft: '3px solid #8b5cf6', paddingLeft: '8px', marginBottom: '8px' }}>
-          <strong>🤖 Explainable AI:</strong>
+          <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FaRobot /> Explainable AI:</strong>
           <div style={{ marginTop: '4px', fontSize: '0.85em', opacity: 0.85 }}>
             {ai_analysis.reasoning}
           </div>
@@ -535,7 +545,7 @@ function FactorCard({ title, factors }) {
               userSelect: 'none'
             }}
           >
-            <strong>🌐 Searched Sources ({web_sources.length})</strong>
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FaGlobe /> Searched Sources ({web_sources.length})</strong>
             <span style={{ fontSize: '1.1em', transform: isSourcesExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
               ▼
             </span>
@@ -550,8 +560,8 @@ function FactorCard({ title, factors }) {
                 return (
                   <li key={idx} style={{ marginBottom: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px' }}>
                     <a href={source.url} target="_blank" rel="noopener noreferrer"
-                      style={{ color: source.is_credible ? '#10b981' : '#f59e0b', textDecoration: 'none', fontWeight: '500' }}>
-                      {source.is_credible ? '✅' : '⚠️'} {domain}
+                      style={{ color: source.is_credible ? '#10b981' : '#f59e0b', textDecoration: 'none', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {source.is_credible ? <FaCheckCircle /> : <FaExclamationTriangle />} {domain}
                     </a>
                     {source.title && (
                       <div style={{ fontSize: '0.85em', opacity: 0.8, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

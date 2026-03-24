@@ -1,3 +1,5 @@
+--only-binary=:all:
+
 # Core API
 fastapi==0.95.2
 uvicorn==0.24.0
@@ -15,7 +17,9 @@ protobuf>=4.0.0
 # NLP and Linguistic Analysis
 nltk==3.8.1
 spacy==3.7.2
-numpy==1.26.2
+numpy==1.26.4
+blis==0.7.11
+thinc==8.2.2
 
 # External Verification Logic
 duckduckgo-search==4.2
