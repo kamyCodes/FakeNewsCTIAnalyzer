@@ -190,7 +190,7 @@ class HybridFakeNewsAnalyzer:
         if not text or len(text.strip()) < 10:
             return self._error_response("Text too short for analysis")
         
-        # Truncate very long texts (transformer limit is 499 tokens)
+        # transformer limit is 499 tokens
         text_for_ml = text[:1996]   # DeBERTa max_length=499 tokens; cap input string at 1996 chars
         text_lower = text.lower()
         
@@ -203,7 +203,7 @@ class HybridFakeNewsAnalyzer:
         # COMPONENT 3: NLP Analysis (20% weight)
         nlp_adjustment = self._get_nlp_adjustment(text)
         
-        # ── Confidence Gating ─────────────────────────────────────────
+        # Confidence Gating 
         # DeBERTa's weight is dynamic: the model only earns a heavy vote
         # when it is genuinely sure about its output. When it sits in the
         # ambiguous 40-60% band it is essentially guessing, so we demote
