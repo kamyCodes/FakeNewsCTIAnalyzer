@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { 
+import {
   FaSearch, FaNewspaper, FaShieldAlt, FaCheckCircle, FaTimesCircle,
   FaFileAlt, FaClipboard, FaRobot, FaGlobe, FaExclamationTriangle, FaChartBar
 } from 'react-icons/fa';
 import './App.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://ewangkamy-fakenewsctianalyzer.hf.space';
 
 // ─── SVG Donut Chart ────────────────────────────────────────────────────────
 function ScoreCircle({ value, color, size = 150 }) {
@@ -497,7 +497,7 @@ function FactorCard({ title, factors }) {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
 
   const formatValue = (key, value) => {
-    if (typeof value === 'boolean') return value ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaCheckCircle style={{ color: '#10b981' }}/> Yes</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaTimesCircle style={{ color: '#ef4444' }}/> No</span>;
+    if (typeof value === 'boolean') return value ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaCheckCircle style={{ color: '#10b981' }} /> Yes</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><FaTimesCircle style={{ color: '#ef4444' }} /> No</span>;
     if (value === null || value === undefined) return 'N/A';
     if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'None';
     if (typeof value === 'object') return JSON.stringify(value);
