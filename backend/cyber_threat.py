@@ -191,7 +191,7 @@ class CyberThreatAnalyzer:
 
         highest_score = max(component_scores)
         active_threats = sum(1 for s in component_scores if s > 20)
-        multi_threat_bonus = (active_threats - 1) * 10 if active_threats > 1 else 0
+        multi_threat_bonus = (active_threats - 1) * 15 if active_threats > 1 else 0
 
         risk_score = min(100, highest_score + multi_threat_bonus)
 
@@ -269,7 +269,7 @@ Output ONLY a raw JSON object (no markdown, no extra text) with:
         matches = sum(1 for keyword in self.phishing_keywords if keyword in text)
         if matches == 0:
             return 0
-        score = matches * 30
+        score = matches * 35
         return min(100, score)
 
     def _calculate_social_engineering_score(self, text: str) -> float:
@@ -277,7 +277,7 @@ Output ONLY a raw JSON object (no markdown, no extra text) with:
             1 for pattern in self.social_engineering_patterns
             if re.search(pattern, text, re.IGNORECASE)
         )
-        return min(100, pattern_matches * 25)
+        return min(100, pattern_matches * 30)
 
     def _calculate_urgency_score(self, text: str) -> float:
         urgency_matches = sum(1 for indicator in self.urgency_indicators if indicator in text)
@@ -288,7 +288,7 @@ Output ONLY a raw JSON object (no markdown, no extra text) with:
             r'\blast\s+(?:chance|warning|notice)\b'
         ]
         time_matches = sum(1 for p in time_patterns if re.search(p, text, re.IGNORECASE))
-        return min(100, urgency_matches * 25 + time_matches * 25)
+        return min(100, urgency_matches * 30 + time_matches * 30)
 
     def _calculate_credential_harvesting_score(self, text: str) -> float:
         credential_matches = sum(1 for indicator in self.credential_indicators if indicator in text)
@@ -298,7 +298,7 @@ Output ONLY a raw JSON object (no markdown, no extra text) with:
             r'(?:submit|send)\s+(?:your|the)',
         ]
         form_matches = sum(1 for p in form_patterns if re.search(p, text, re.IGNORECASE))
-        return min(100, credential_matches * 30 + form_matches * 20)
+        return min(100, credential_matches * 35 + form_matches * 25)
 
     def _calculate_malware_score(self, text: str) -> float:
         score = 0

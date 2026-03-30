@@ -628,9 +628,11 @@ class FakeNewsAnalyzer:
             try:
                 fact_check_result = self.fact_checker.check_claims(text)
                 if fact_check_result['verdict'] == 'FALSE':
-                    base_score = min(base_score + 20, 100)
+                    base_score = min(base_score + 40, 100)
+                elif fact_check_result['verdict'] == 'UNVERIFIED':
+                    base_score = min(base_score + 10, 100)
                 elif fact_check_result['verdict'] == 'TRUE':
-                    base_score = max(base_score - 20, 0)
+                    base_score = max(base_score - 40, 0)
                 print(f" Fact check: {fact_check_result['verdict']} ({fact_check_result['confidence']}% confidence)")
                 fact_check_success = True
             except Exception as e:
@@ -664,6 +666,13 @@ class FakeNewsAnalyzer:
 
                 base_score = max(0, min(base_score, 100))
                 print(f"  NLP Engine: {ai_result['verdict']} ({ai_prob}% prob) | final base → {base_score:.1f}%")
+                
+                # Symmetrical Strictness: If the news is strictly verifiable as real
+                if fact_check_result and fact_check_result['verdict'] == 'TRUE' and ai_result['verdict'] == 'TRUE':
+                    print("  [Consensus] Both Fact Checker and NLP Engine verified as TRUE -> Stamping as Authentic")
+                    base_score = min(base_score, 5.0)
+                    result['explanation'] = "Strictly Verified as Authentic News: " + result['explanation']
+
                 ai_success = True
             except Exception as e:
                 print(f" NLP Engine error: {e}")

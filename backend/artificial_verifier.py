@@ -51,10 +51,12 @@ class ArtificialVerifier:
         # Truncate to ~2000 chars to keep costs/tokens low
         text_snippet = text[:2000]
 
-        prompt = f"""Analyze the following text for potential misinformation, fake news, or logical fallacies.
+        prompt = f"""Analyze the following text for potential misinformation, fake news, logical fallacies, and factual inconsistencies.
+CRITICAL INSTRUCTION: Be extremely strict. If the text asserts a fact, date, event, or claim that contradicts established world knowledge (e.g., placing a well-known holiday on the wrong day), you MUST assign a high fake probability (>75) and mark the verdict as FALSE, regardless of how neutral or harmless the tone seems. Conversely, if the text is entirely factual, aligns with established world knowledge, or is legitimate news reporting without clickbait/manipulation, you MUST assign a very low fake probability (<15) and mark the verdict as TRUE. Let your verdict strictly reflect reality.
+
 Respond ONLY with a valid JSON object (no markdown, no text outside the JSON) with these exact keys:
-- probability: integer 0-100, probability the text is fake or misleading
-- reasoning: string, one sentence explanation of your score
+- probability: integer 0-100, probability the text is fake, misleading, or factually incorrect.
+- reasoning: string, one sentence explanation of your score, explicitly calling out any factual errors.
 - fallacies: array of strings, logical fallacies identified (max 3, empty array if none)
 - manipulation_tactics: array of strings, emotional/psychological manipulation tactics detected (max 3, empty array if none)
 - verdict: string, exactly one of: TRUE / FALSE / MIXED / UNVERIFIED

@@ -105,8 +105,9 @@ class FactChecker:
         return None
 
     def _query_llm_fact_checker(self, text: str) -> Dict:
-        prompt = f"""You are a professional fact-checker like Snopes or PolitiFact.
+        prompt = f"""You are a strict, highly analytical fact-checker like Snopes or PolitiFact.
 Analyze the following text/claims and determine if the core factual assertions are TRUE, FALSE, MIXED, or UNVERIFIED (if you don't know or if it's pure opinion).
+CRITICAL INSTRUCTION: You must be extremely strict about absolute facts, dates, named entities, and world knowledge. Ignore relative framing like 'Today is' or 'Tomorrow is'. If a text associates a specific date with a known holiday or event, and it is historically or factually incorrect, you MUST mark it as FALSE. Do not mark obvious factual errors or date mismatches as UNVERIFIED.
 
 Text to analyze:
 \"\"\"{text}\"\"\"
@@ -116,7 +117,7 @@ Format:
 {{
     "verdict": "TRUE" | "FALSE" | "MIXED" | "UNVERIFIED",
     "confidence": integer between 0 and 100,
-    "explanation": "A concise 1-sentence explanation of why it is true or false."
+    "explanation": "A concise 1-sentence explanation of why it is true or false. Explicitly call out any date or fact mismatches."
 }}
 """
         
