@@ -56,6 +56,13 @@ fake_news_analyzer = FakeNewsAnalyzer()
 originality_analyzer = OriginalityAnalyzer()
 cyber_threat_analyzer = CyberThreatAnalyzer()
 
+# Safely share the DeBERTa model to the cyber threat module to avoid OOM
+try:
+    if hasattr(fake_news_analyzer.analyzer, 'ml_model') and fake_news_analyzer.analyzer.ml_model:
+        cyber_threat_analyzer.set_ml_model(fake_news_analyzer.analyzer.ml_model)
+except Exception as e:
+    logger.error(f"Failed to share DeBERTa model with Cyber Threat Engine: {e}")
+
 # Analysis Cache to prevent inconsistent results for identical text
 analysis_cache = {}
 

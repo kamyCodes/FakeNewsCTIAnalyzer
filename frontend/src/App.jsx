@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fa';
 import './App.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://ewangkamy-fakenewsctianalyzer.hf.space';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // ─── SVG Donut Chart ────────────────────────────────────────────────────────
 function ScoreCircle({ value, color, size = 150 }) {
@@ -163,6 +163,7 @@ function App() {
   const [url, setUrl] = useState('');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [abortController, setAbortController] = useState(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
@@ -201,6 +202,9 @@ function App() {
     setLoadingStep(0);
     setShowDetails(false);
 
+    const controller = new AbortController();
+    setAbortController(controller);
+
     const stepInterval = setInterval(() => {
       setLoadingStep(prev => prev < steps.length - 1 ? prev + 1 : prev);
     }, 2000);
@@ -212,7 +216,10 @@ function App() {
       const response = await axios.post(`${API_URL}/analyze`, {
         text: analysisText,
         url: url.trim() || null
-      }, { timeout: 120000 });
+      }, { 
+        timeout: 120000,
+        signal: controller.signal 
+      });
 
       setLoadingStep(steps.length - 1);
 
@@ -225,6 +232,10 @@ function App() {
         }, 2200);
       }, 500);
     } catch (err) {
+      if (axios.isCancel(err)) {
+        console.log('Analysis cancelled by user');
+        return;
+      }
       console.error('Analysis error:', err);
       let errorTitle = 'Analysis Aborted';
       let errorMessage = 'The system could not complete the full analysis.';
@@ -251,6 +262,16 @@ function App() {
       setLoading(false);
     } finally {
       clearInterval(stepInterval);
+      setAbortController(null);
+    }
+  };
+
+  const cancelAnalysis = () => {
+    if (abortController) {
+      abortController.abort();
+      setLoading(false);
+      setLoadingStep(0);
+      toast.info('Analysis cancelled by user.');
     }
   };
 
@@ -393,6 +414,35 @@ function App() {
             <div className="loading-progress-container">
               <div className="loading-progress-bar" style={{ width: `${steps[loadingStep].progress}%` }} />
             </div>
+            <button 
+              onClick={cancelAnalysis} 
+              title="Cancel Analysis"
+              style={{
+                marginTop: '32px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                opacity: 0.6,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#ef4444',
+                transition: 'all 0.2s ease',
+                padding: 0
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '0.6';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <FaTimesCircle size={44} />
+              <span style={{ fontSize: '0.85rem', color: '#9ca3af', fontWeight: '500' }}>Cancel</span>
+            </button>
           </div>
         )}
 
@@ -484,7 +534,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Academic Project - Fake News & Cyber Threat Intelligence System</p>
+        <p>Academic Project - Fake News & Cyber Threat Intelligence Analyzer</p>
         <p>Percentage-based confidence scoring for interpretable results</p>
       </footer>
     </div>
@@ -493,7 +543,7 @@ function App() {
 
 // ─── Factor Card ─────────────────────────────────────────────────────────────
 function FactorCard({ title, factors }) {
-  const { explanation, detected_threats, ai_analysis, web_sources, ...otherFactors } = factors;
+  const { explanation, detected_threats, ai_analysis, explainable_ai, web_sources, ...otherFactors } = factors;
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
 
   const formatValue = (key, value) => {
@@ -501,6 +551,10 @@ function FactorCard({ title, factors }) {
     if (value === null || value === undefined) return 'N/A';
     if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'None';
     if (typeof value === 'object') return JSON.stringify(value);
+    
+    const noneKeys = ['strong_fake_indicators', 'absurdity_score', 'clickbait_score', 'credibility_indicators'];
+    if (value === 0 && noneKeys.includes(key)) return 'None';
+
     const percentageKeys = [
       'probability', 'score', 'ml_probability', 'heuristic_score',
       'nlp_adjustment', 'absurdity_score', 'clickbait_score',
@@ -514,21 +568,21 @@ function FactorCard({ title, factors }) {
   return (
     <div className="factor-card">
       <h4>{title}</h4>
-      {explanation && (
+      {/* {explanation && (
         <div className="card-summary"><strong>Summary:</strong> {explanation}</div>
-      )}
-      {detected_threats && (
+      )} */}
+      {/* {detected_threats && (
         <div className="card-summary threats">
           <strong>Detected Threats:</strong>{' '}
           {Array.isArray(detected_threats) ? detected_threats.join(', ') : String(detected_threats)}
         </div>
-      )}
+      )} */}
       {/* AI Verifier Analysis — shown as its own block */}
-      {ai_analysis && ai_analysis.reasoning && (
-        <div className="card-summary" style={{ borderLeft: '3px solid #8b5cf6', paddingLeft: '8px', marginBottom: '8px' }}>
+      {(ai_analysis?.reasoning || explainable_ai) && (
+        <div className="card-summary" style={{ borderLeft: '3px solid #8b5cf6', paddingLeft: '8px', marginBottom: '8px', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
           <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FaRobot /> Explainable AI:</strong>
-          <div style={{ marginTop: '4px', fontSize: '0.85em', opacity: 0.85 }}>
-            {ai_analysis.reasoning}
+          <div style={{ marginTop: '4px', fontSize: '0.85em', opacity: 0.85, lineHeight: '1.4' }}>
+            {ai_analysis?.reasoning || explainable_ai}
           </div>
         </div>
       )}

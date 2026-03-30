@@ -149,6 +149,38 @@ class CyberThreatAnalyzer:
             else:
                 print(" No GROQ_API_KEY found for Cyber Threat Engine")
 
+        # Zero-shot ML model (passed in from FakeNewsAnalyzer to save memory)
+        self.ml_model = None
+
+    def set_ml_model(self, ml_model):
+        """Allows injecting the DeBERTa model so we don't load it twice"""
+        self.ml_model = ml_model
+        print(" Cyber Threat Zero-Shot Transformer connected")
+
+    def _get_deberta_threat_score(self, text: str) -> float:
+        if not self.ml_model:
+            return 0.0
+        try:
+            candidate_labels = [
+                "phishing attempt or scam",
+                "social engineering or fraud",
+                "safe legitimate communication"
+            ]
+            text_snippet = text[:1500] 
+            result = self.ml_model(
+                text_snippet,
+                candidate_labels=candidate_labels,
+                truncation=True
+            )
+            scores = dict(zip(result['labels'], result['scores']))
+            threat_prob = (scores.get("phishing attempt or scam", 0) + 
+                           scores.get("social engineering or fraud", 0)) * 100
+            
+            return threat_prob
+        except Exception as e:
+            print(f" DeBERTa Cyber Threat Error: {e}")
+            return 0.0
+
     def analyze(self, text: str, url: Optional[str] = None) -> Dict:
         text_lower = text.lower()
 
@@ -197,6 +229,7 @@ class CyberThreatAnalyzer:
 
         # Let the NLP engine perform a zero-shot contextual analysis for deep social engineering
         nlp_threat_details = "NLP engine not run"
+        nlp_threat_score = 0
         if self.groq_client and len(text.strip()) > 10:
             try:
                 nlp_result = self._query_nlp_threat_analyzer(text)
@@ -206,12 +239,44 @@ class CyberThreatAnalyzer:
                 if nlp_threat_score > risk_score:
                     # If NLP detects something heuristics completely missed, boost it
                     risk_score = max(risk_score, nlp_threat_score)
-                nlp_threat_details = f"{nlp_explanation} (NLP Confidence: {nlp_threat_score}%)"
+                nlp_threat_details = f"{nlp_explanation}"
             except Exception as e:
                 print(f"NLP Threat Engine error: {e}")
                 nlp_threat_details = "NLP engine failed during analysis"
 
+        # Let the Zero-Shot transformer evaluate it independently
+        deberta_score = round(self._get_deberta_threat_score(text), 1)
+        if deberta_score > risk_score:
+            risk_score = max(risk_score, deberta_score)
+
         risk_score = round(min(100, risk_score), 1)
+
+        detected_threat_list = self._get_detected_threats(
+            phishing_score, social_eng_score, urgency_score,
+            credential_score, url_score, malware_score
+        )
+        
+        final_explanation = self._generate_explanation(
+            phishing_score, social_eng_score, urgency_score,
+            credential_score, url_score, malware_score
+        )
+
+        # Sync the generic explanation fields to reflect AI overrides if triggered
+        if nlp_threat_score > 40 and nlp_threat_score >= highest_score + multi_threat_bonus:
+            if "No significant threats detected" in detected_threat_list:
+                detected_threat_list = []
+            detected_threat_list.append("AI-Detected Contextual Threat")
+            final_explanation = "Threat flagged by advanced contextual AI engine"
+        
+        if deberta_score > 40 and deberta_score >= highest_score + multi_threat_bonus:
+            if "No significant threats detected" in detected_threat_list:
+                detected_threat_list = []
+            if "Transformer-Detected Threat" not in detected_threat_list:
+                detected_threat_list.append("Transformer-Detected Threat")
+            final_explanation = "Threat flagged by zero-shot transformer model"
+
+        explainable_string = f"{nlp_threat_details}"
+        
 
         return {
             "risk_score": round(risk_score, 1),
@@ -224,15 +289,9 @@ class CyberThreatAnalyzer:
                 "url_risk_score": round(url_score, 1),
                 "malware_patterns": round(malware_score, 1),
                 "urlhaus_check": urlhaus_details,
-                "explainable_ai": nlp_threat_details,
-                "detected_threats": self._get_detected_threats(
-                    phishing_score, social_eng_score, urgency_score,
-                    credential_score, url_score, malware_score
-                ),
-                "explanation": self._generate_explanation(
-                    phishing_score, social_eng_score, urgency_score,
-                    credential_score, url_score, malware_score
-                )
+                "explainable_ai": explainable_string,
+                "detected_threats": detected_threat_list,
+                "explanation": final_explanation
             }
         }
 
